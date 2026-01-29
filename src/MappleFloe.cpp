@@ -212,18 +212,17 @@ void MFloe::loadConf(const char *name) {
     }
 
     conf >> token;
-  }
+  } // End of parsing loop
+
+  // At this point, it is normally not possible to have no elements
+  if (FloeElements.empty()) { std::cout << MFLOE_WARN << "No FloeElements after parsing" << std::endl; }
 
   // precompute things ========================================
   updateBoundLimits();
-
-  // some checks
-  if (FloeElements.empty()) { std::cout << MFLOE_WARN << "No FloeElements" << std::endl; }
-  // if (Load == nullptr) { std::cout << MFLOE_WARN << "No Loading defined!" << std::endl; }
 }
 
 // ---------------------------------------------------------
-// Compute ymin and ymax
+// Compute the axis aligned bounding box in the sea-plane
 // ---------------------------------------------------------
 void MFloe::updateBoundLimits() {
   double xmin = FloeElements[0].pos.x - FloeElements[0].radius;
@@ -260,7 +259,7 @@ void MFloe::computeMasseProperties(double density) {
 // ---------------------------------------------------------
 // Preprocessing function to activate the bonds
 // ---------------------------------------------------------
-void MFloe::activateBonds(/*bool sameMaterial,*/ double dmax) {
+void MFloe::activateBonds(double dmax) {
   // TODO: FONCTION A ADAPTER
 
   // In case the conf-file has no interactions, the neighbor list is updated
@@ -387,7 +386,7 @@ void MFloe::integrate() {
 
   iconfMaxEstimated = iconf + floor((tmax - t) / interHist);
 
-  std::ofstream stressOut("stress.out.txt");
+  std::ofstream time_data_file("time_data.txt");
 
   size_t nDriven = Drivings.size();
 
@@ -438,7 +437,11 @@ void MFloe::integrate() {
 
     interOutC += dt;
     if (interOutC > interOut - dt_2) {
-      stressOut << t << std::endl; // pas très util pour le moment
+      // ****** Version pour debug ******
+      if (!Interactions.empty()) {
+        time_data_file << t << ' ' << Interactions[0].isBonded << ' ' << Interactions[0].fnb << ' '
+                       << Interactions[0].ftb << ' ' << Interactions[0].fsb << std::endl;
+      }
       interOutC = 0.0;
     }
 
@@ -464,23 +467,23 @@ void MFloe::accelerations() {
     FloeElements[i].zforce = 0.0;
     FloeElements[i].moment = 0.0;
     FloeElements[i].acc.reset();
-    FloeElements[i].zacc = 0.0; // gravity will be added at the end
+    FloeElements[i].zacc = 0.0; // gravity will be added at the end (or never, we need to discuss this point)
     FloeElements[i].arot = 0.0;
   }
 
   computeForcesAndMoments();
 
-  // Finally compute the accelerations (translation and rotation)
+  // Finally, compute the accelerations (translation and rotation)
   for (size_t i = 0; i < FloeElements.size(); i++) {
     FloeElements[i].acc  = FloeElements[i].force / FloeElements[i].mass;
-    FloeElements[i].zacc = FloeElements[i].zforce / FloeElements[i].mass - zgravNorm;
+    FloeElements[i].zacc = FloeElements[i].zforce / FloeElements[i].mass /* - zgravNorm */;
     FloeElements[i].arot = FloeElements[i].moment / FloeElements[i].inertia;
   }
 }
 
-// ---------------------------------------------------------
+// ---------------------------------------------------------------
 // The function to compute force interactions between FloeElements
-// ---------------------------------------------------------
+// ---------------------------------------------------------------
 void MFloe::computeForcesAndMoments() {
 
   for (size_t k = 0; k < Interactions.size(); ++k) {
@@ -489,11 +492,10 @@ void MFloe::computeForcesAndMoments() {
     size_t j = Interactions[k].j;
 
     vec2r branch = FloeElements[j].pos - FloeElements[i].pos;
-    // branch.x += getBranchShift(branch.x, Lperiod);
 
     vec2r unit_n = branch;
     double len   = unit_n.normalize();
-    vec2r relVel = FloeElements[j].vel - FloeElements[i].vel; // Does not account for rotation yet
+    vec2r relVel = FloeElements[j].vel - FloeElements[i].vel; // Does not account for rotation (yet)
 
     vec2r unit_t(-unit_n.y, unit_n.x);
     double dn = len - FloeElements[i].radius - FloeElements[j].radius;
@@ -502,66 +504,66 @@ void MFloe::computeForcesAndMoments() {
     double Li   = FloeElements[i].radius + 0.5 * dn;
     double Lj   = FloeElements[j].radius + 0.5 * dn;
     double vijt = relVel * unit_t - FloeElements[i].vrot * Li - FloeElements[j].vrot * Lj;
+    double vijs = FloeElements[j].zvel - FloeElements[i].zvel;
 
     // ===================================
-    // BOND
+    // ICE-BOND
     // ===================================
     if (Interactions[k].isBonded == true) { // i and j are bonded
 
-      // FIXME: il faut ajouter les variables dnb et dtb
-
       // calculate the bonded forces
       Interactions[k].fnb = -kn * (dn - Interactions[k].dn0);
-      // Interactions[k].ftb = Interactions[k].ft - Interactions[k].kt * dt * vijt;
+      Interactions[k].ftb = Interactions[k].ftb - kt * dt * vijt;
+      Interactions[k].fsb = Interactions[k].fsb - kt * dt * vijs;
 
-    } else { // i and j not bonded
+      // ===================================
+      // BREAKAGE OF ICE-BONDS
+      // ===================================
+      double crit = -1.0; // FAKE for now !!!!!!!!
+      if (crit >= 0.0) {
+        Interactions[k].isBonded = false;
+        // cancel the bonding forces
+        Interactions[k].fnb = 0.0;
+        Interactions[k].ftb = 0.0;
+        Interactions[k].fsb = 0.0;
+        // cancel the contact force, that will be updated soon
+        Interactions[k].fn = 0.0;
+        Interactions[k].ft = 0.0; // integration resarts
+        Interactions[k].fs = 0.0; // integration resarts
+      }
 
-      Interactions[k].fnb = 0;
-      Interactions[k].ftb = 0;
     }
-
     // ===================================
-    // CONTACT
+    // NON-BONDED CONTACT
     // ===================================
-    // TODO : IL FAUT RETIRER LA NOTION DE isSameMaterialBond
-    // frictional contact (possibly in addition to bond)
-
-    if (Interactions[k].isBonded == false && dn < 0.0) { // it means that i and j are in contact
-
-      double fne = -kn * dn; // elastic normal force
-      // double fnv = -Interactions[k].damp * vn; // viscous normal force
-
-      Interactions[k].fn = fne /* + fnv */;
+    else if (dn < 0.0) { // it means that i and j are in contact (but not bonded)
+      
+      // Elastic normal repulsion force
+      Interactions[k].fn = -kn * dn;
       if (Interactions[k].fn < 0.0) { Interactions[k].fn = 0.0; }
 
       // Tangential force (friction)
       double ft    = Interactions[k].ft - kt * (dt * vijt);
-      double ftest = mu * Interactions[k].fn; // remember that fn >= 0
-      if (fabs(ft) > ftest) { ft = (ft > 0.0) ? ftest : -ftest; }
+      double limit = mu * Interactions[k].fn; // remember that fn > 0 because dn < 0
+      if (fabs(ft) > limit) { ft = (ft > 0.0) ? limit : -limit; }
       Interactions[k].ft = ft;
 
-      // Adhesion
-      // TODO:
-      // Interactions[k].fn -= fadh;
+      // out-of-sea-plane tangential force (friction)
+      double fs = Interactions[k].fs - kt * (dt * vijs);
+      if (fabs(fs) > limit) { fs = (fs > 0.0) ? limit : -limit; }
+      Interactions[k].fs = fs;
     }
 
-    // ===================================
-    // BREAKAGE OF ICE-BONDS
-    // ===================================
-    // TODO if (isBonded) ...
-
     // Resultant force and moment
+    // (in sea-plane)
     vec2r f = (Interactions[k].fn + Interactions[k].fnb) * unit_n + (Interactions[k].ft + Interactions[k].ftb) * unit_t;
     FloeElements[i].force -= f;
     FloeElements[j].force += f;
     FloeElements[i].moment -= (Interactions[k].ft + Interactions[k].ftb) * Li;
     FloeElements[j].moment -= (Interactions[k].ft + Interactions[k].ftb) * Lj;
-
-    // Internal stress
-    // Sig.xx += f.x * branch.x;
-    // Sig.xy += f.x * branch.y;
-    // Sig.yx += f.y * branch.x;
-    // Sig.yy += f.y * branch.y;
+    // (out-of-sea-plane)
+    FloeElements[i].zforce -= (Interactions[k].fs + Interactions[k].fsb);
+    FloeElements[j].zforce += (Interactions[k].fs + Interactions[k].fsb);
 
   } // End loop over interactions
 }
