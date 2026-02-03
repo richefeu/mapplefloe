@@ -11,6 +11,8 @@ void Interaction::copy(Interaction &I) {
   fnb = I.fnb;
   ft  = I.ft;
   ftb = I.ftb;
+  fs  = I.fs;
+  fsb = I.fsb;
 
   meff = I.meff;
   //kn   = I.kn;

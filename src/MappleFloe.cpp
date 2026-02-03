@@ -91,7 +91,7 @@ void MFloe::saveConf(const char *name) {
 }
 
 // ---------------------------------------------------------
-// A fast way to load 'conf<i>' files (just by specifying i)
+// A way to load 'conf<i>' files just by specifying i
 // ---------------------------------------------------------
 void MFloe::loadConf(int i) {
   char fname[256];
@@ -320,20 +320,16 @@ void MFloe::screenLog() {
 // FloeElement
 // ---------------------------------------------------------
 void MFloe::updateNeighbors(double dmax) {
-  // TODO: adapter
-
   // store ft because the list will be erased before being rebuilt
   std::vector<Interaction> storedInteractions(Interactions.size());
   std::copy(Interactions.begin(), Interactions.end(), storedInteractions.begin());
 
   // now clear the list and rebuild it
   Interactions.clear();
-  // double Lperiod = xmax - xmin;
   for (size_t i = 0; i < FloeElements.size(); ++i) {
     for (size_t j = i + 1; j < FloeElements.size(); ++j) {
 
       vec2r branch = FloeElements[j].pos - FloeElements[i].pos;
-      // branch.x += getBranchShift(branch.x, Lperiod);
 
       double sum = dmax + FloeElements[i].radius + FloeElements[j].radius;
       if (norm2(branch) <= sum * sum) { Interactions.push_back(Interaction(i, j)); }
@@ -437,11 +433,17 @@ void MFloe::integrate() {
 
     interOutC += dt;
     if (interOutC > interOut - dt_2) {
-      // ****** Version pour debug ******
+
+#if 1
+      // ****** Version pour debug des modèles d'interaction ******
       if (!Interactions.empty()) {
         time_data_file << t << ' ' << Interactions[0].isBonded << ' ' << Interactions[0].fnb << ' '
-                       << Interactions[0].ftb << ' ' << Interactions[0].fsb << std::endl;
+                       << Interactions[0].ftb << ' ' << Interactions[0].fsb << ' ' <<  Interactions[0].fn << ' '
+                       << Interactions[0].ft << ' ' << Interactions[0].fs << std::endl;
       }
+#else
+      time_data_file << t << ' ' << std::endl;
+#endif
       interOutC = 0.0;
     }
 
@@ -507,19 +509,26 @@ void MFloe::computeForcesAndMoments() {
     double vijs = FloeElements[j].zvel - FloeElements[i].zvel;
 
     // ===================================
-    // ICE-BOND
+    // ICE-BONDED
     // ===================================
     if (Interactions[k].isBonded == true) { // i and j are bonded
 
-      // calculate the bonded forces
+      // calculate the elastic bonded forces
       Interactions[k].fnb = -kn * (dn - Interactions[k].dn0);
       Interactions[k].ftb = Interactions[k].ftb - kt * dt * vijt;
       Interactions[k].fsb = Interactions[k].fsb - kt * dt * vijs;
+      // std::cout << "fsb = " << Interactions[k].fsb << std::endl;
+      //  ===================================
+      //  BREAKAGE OF ICE-BONDS
+      //  ===================================
 
-      // ===================================
-      // BREAKAGE OF ICE-BONDS
-      // ===================================
-      double crit = -1.0; // FAKE for now !!!!!!!!
+      double fcn  = sqrt(2.0 * Interactions[k].coverage * Interactions[k].A * kn * Gc);
+      double fct2 = 2.0 * Interactions[k].coverage * Interactions[k].A * kt * Gc;
+
+      double crit = (-Interactions[k].fnb / fcn +
+                     (Interactions[k].ftb * Interactions[k].ftb + Interactions[k].fsb * Interactions[k].fsb) / fct2) -
+                    1.0;
+
       if (crit >= 0.0) {
         Interactions[k].isBonded = false;
         // cancel the bonding forces
@@ -537,7 +546,7 @@ void MFloe::computeForcesAndMoments() {
     // NON-BONDED CONTACT
     // ===================================
     else if (dn < 0.0) { // it means that i and j are in contact (but not bonded)
-      
+
       // Elastic normal repulsion force
       Interactions[k].fn = -kn * dn;
       if (Interactions[k].fn < 0.0) { Interactions[k].fn = 0.0; }
