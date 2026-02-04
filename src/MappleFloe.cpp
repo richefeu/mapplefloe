@@ -154,15 +154,14 @@ void MFloe::loadConf(const char *name) {
     } else if (token == "mu") {
       conf >> mu;
     } else if (token == "Gc") {
-      conf >> Gc;  
+      conf >> Gc;
     } else if (token == "activationTime") {
-      conf >> activationTime;  
+      conf >> activationTime;
     } else if (token == "healingTime") {
-      conf >> healingTime;  
+      conf >> healingTime;
     } else if (token == "coverage0") {
-      conf >> coverage0;  
-    } 
-    else if (token == "nDriven") {
+      conf >> coverage0;
+    } else if (token == "nDriven") {
       size_t nDriven;
       conf >> nDriven;
       Drivings.clear();
@@ -269,11 +268,8 @@ void MFloe::computeMasseProperties(double density) {
 void MFloe::activateBonds(double dmax) {
   // In case the conf-file has no interactions, the neighbor list is updated
   updateNeighbors(dmax);
-  
-  for (size_t e = 0 ; e < FloeElements.size(); e++) {
-    FloeElements[e].Z = 0;
-  }
-  
+
+  for (size_t e = 0; e < FloeElements.size(); e++) { FloeElements[e].Z = 0; }
 
   for (size_t k = 0; k < Interactions.size(); k++) {
     size_t i = Interactions[k].i;
@@ -285,40 +281,33 @@ void MFloe::activateBonds(double dmax) {
     double sum        = dmax + FloeElements[i].radius + FloeElements[j].radius;
     if (branchLen2 <= sum * sum) {
       Interactions[k].isBonded = true;
-      Interactions[k].dn0      = sqrt(branchLen2) - (FloeElements[i].radius + FloeElements[j].radius);      
+      Interactions[k].dn0      = sqrt(branchLen2) - (FloeElements[i].radius + FloeElements[j].radius);
       Interactions[k].coverage = 1.0;
       FloeElements[i].Z += 1;
       FloeElements[j].Z += 1;
     } // endif
   } // end loop over interactions
-  
-  
+
   // calcul des surfaces
   for (size_t k = 0; k < Interactions.size(); k++) {
-    if (!Interactions[k].isBonded) {
-      continue;
-    }
-    
+    if (!Interactions[k].isBonded) { continue; }
+
     size_t i = Interactions[k].i;
     size_t j = Interactions[k].j;
-    
-    
+
     double h = std::min(FloeElements[i].height, FloeElements[j].height);
-    
+
     double li = 2.0 * FloeElements[i].radius;
-    if (FloeElements[i].Z > 2) {
-      li *= sin(M_PI / FloeElements[i].Z);
-    }
+    if (FloeElements[i].Z > 2) { li *= sin(M_PI / FloeElements[i].Z); }
     double lj = 2.0 * FloeElements[j].radius;
-    if (FloeElements[j].Z > 2) {
-      lj *= sin(M_PI / FloeElements[j].Z);
-    }
+    if (FloeElements[j].Z > 2) { lj *= sin(M_PI / FloeElements[j].Z); }
     double l = std::min(li, lj);
-      
+
     Interactions[k].A = h * l;
-    
   }
-  
+
+  // test
+  // for (size_t e = 0; e < FloeElements.size(); e++) { std::cout << "Z = " << FloeElements[e].Z << std::endl; }
 }
 
 // ---------------------------------------------------------
@@ -326,17 +315,13 @@ void MFloe::activateBonds(double dmax) {
 // on how the computation goes
 // ---------------------------------------------------------
 void MFloe::screenLog() {
-  return;
+
+  return; /// **********
+
   std::cout << std::endl;
   std::cout << "————————————————————————————————————————————————————————————————" << std::endl;
   std::cout << " iconf = " << iconf << "/" << iconfMaxEstimated << ", time = " << std::setprecision(10) << t
             << std::endl;
-  /*
-  std::cout << " Stress-particles:  " << std::endl;
-  Sig.fancyPrint(mat4r::ColoredBrackets | mat4r::Scientific, 12);
-  std::cout << " Stress-connection: " << std::endl;
-  SigConnect.fancyPrint(mat4r::ColoredBrackets | mat4r::Scientific, 12);
-  */
   // ...
   std::cout << "————————————————————————————————————————————————————————————————" << std::endl;
 }
@@ -377,18 +362,8 @@ void MFloe::updateNeighbors(double dmax) {
     if (storedInteractions[kold].i == Interactions[k].i && storedInteractions[kold].j == Interactions[k].j) {
       Interactions[k].copy(storedInteractions[kold]);
       ++kold;
-    } else {
-      /*combineParameters(k);*/
     }
   }
-
-  // finish parameter-combinations in case of loop-break
-  /*
-  if (k < Interactions.size()) {
-    if (k > 0) { --k; }
-    for (; k < Interactions.size(); ++k) { combineParameters(k); }
-  }
-  */
 }
 
 // ---------------------------------------------------------
@@ -527,7 +502,6 @@ void MFloe::computeForcesAndMoments() {
 
     vec2r unit_t(-unit_n.y, unit_n.x);
     double dn = len - FloeElements[i].radius - FloeElements[j].radius;
-    // double vn = relVel * unit_n;
 
     double Li   = FloeElements[i].radius + 0.5 * dn;
     double Lj   = FloeElements[j].radius + 0.5 * dn;
@@ -551,32 +525,36 @@ void MFloe::computeForcesAndMoments() {
       double fcn  = sqrt(2.0 * Interactions[k].coverage * Interactions[k].A * kn * Gc);
       double fct2 = 2.0 * Interactions[k].coverage * Interactions[k].A * kt * Gc;
 
-      double crit = (-Interactions[k].fnb / fcn +
-                     (Interactions[k].ftb * Interactions[k].ftb + Interactions[k].fsb * Interactions[k].fsb) / fct2) -
-                    1.0;
+      // clang-format off
+      double crit = - Interactions[k].fnb / fcn
+                    + (Interactions[k].ftb * Interactions[k].ftb 
+                       + Interactions[k].fsb * Interactions[k].fsb) / fct2 - 1.0;
+      // clang-format on
 
       if (crit >= 0.0) {
         Interactions[k].isBonded = false;
-        Interactions[k].t0 = -1.0;
+        Interactions[k].t0       = -1.0;
+
         // cancel the bonding forces
         Interactions[k].fnb = 0.0;
         Interactions[k].ftb = 0.0;
         Interactions[k].fsb = 0.0;
-        
+
         // cancel the contact force, that will be updated soon
         Interactions[k].fn = 0.0;
         Interactions[k].ft = 0.0; // integration resarts
         Interactions[k].fs = 0.0; // integration resarts
-        
+
         // update the Z of each element
         FloeElements[i].Z -= 1;
         if (FloeElements[i].Z < 0) {
-          std::cout << "Tabaarnak ! Z est devenu négatif" << std::endl;
+          std::cout << MFLOE_WARN << "Z est devenu négatif" << std::endl;
           FloeElements[i].Z = 0;
         }
+
         FloeElements[j].Z -= 1;
         if (FloeElements[j].Z < 0) {
-          std::cout << "Tabaarnak ! Z est devenu négatif" << std::endl;
+          std::cout << MFLOE_WARN << "Z est devenu négatif" << std::endl;
           FloeElements[j].Z = 0;
         }
       }
@@ -586,28 +564,26 @@ void MFloe::computeForcesAndMoments() {
     // NON-BONDED CONTACT
     // ===================================
     else if (dn < 0.0) { // it means that i and j are in contact (but not bonded)
-      
+
       if (Interactions[k].t0 == -1.0) { // this means that the contact is 'new'
-      std::cout << "Yop collage!!!! t = " << t << std::endl;
         Interactions[k].t0 = t;
-        std::cout << " t0 = " << Interactions[k].t0 << std::endl;
-      } 
-      else if (Interactions[k].t0 > 0.0 && (t - Interactions[k].t0) > activationTime) {
-        std::cout << "*************\n";
-        std::cout << "t = " << t << std::endl;
-        std::cout << "Interactions[k].t0 = " << Interactions[k].t0 << std::endl;
-        std::cout << "activationTime = " << activationTime << std::endl;
+      } else if (Interactions[k].t0 > 0.0 && (t - Interactions[k].t0) > activationTime) {
         Interactions[k].isBonded = true;
+        FloeElements[Interactions[k].i].Z += 1;
+        FloeElements[Interactions[k].j].Z += 1;
         Interactions[k].coverage = 1.0; // pour tester, il faudra le mettre à coverage0
-        Interactions[k].fnb = 0.0;
-        Interactions[k].ftb = 0.0;
-        Interactions[k].fsb = 0.0;
-        Interactions[k].fn = 0.0;
-        Interactions[k].ft = 0.0;
-        Interactions[k].fs = 0.0;
-        //Interactions[k].t0 = t; // pour le healing
-        Interactions[k].dn0 = dn;
-        continue; // next interaction k
+        Interactions[k].fnb      = 0.0;
+        Interactions[k].ftb      = 0.0;
+        Interactions[k].fsb      = 0.0;
+        Interactions[k].fn       = 0.0;
+        Interactions[k].ft       = 0.0;
+        Interactions[k].fs       = 0.0;
+        Interactions[k].t0       = t; // now t0 is the beginning of healing
+        Interactions[k].dn0      = dn;
+
+        // proceed to next interaction k
+        // (next time-step this interaction will be bonded with initial coverage)
+        continue;
       }
 
       // Elastic normal repulsion force
@@ -625,7 +601,7 @@ void MFloe::computeForcesAndMoments() {
       if (fabs(fs) > limit) { fs = (fs > 0.0) ? limit : -limit; }
       Interactions[k].fs = fs;
     } else {
-      // dn > 0 and without bond
+      // dn > 0, not bonded, so this may be a lost contact
       Interactions[k].t0 = -1.0;
     }
 

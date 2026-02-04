@@ -22,29 +22,19 @@ healingTime 100.
 nDriven 2
 imposedVelocities 0 0 0 0
 imposedVelocityCycles 
-0.0015 50 0 0 0
+0.0015  50 0 0 0
 0.0015 -51 0 0 0
-0.002  0 0 0 0
+0.002    0 0 0 0
 
-# could be oscillate xAmpl xPeriod yAmpl yPeriod zAmpl zPeriod rotAmpl rotPeriod...
-
-#xpos ypos zpos xvel yvel zvel xacc yacc zacc rot vrot arot radius inertia mass
+# xpos ypos zpos xvel yvel zvel xacc yacc zacc rot vrot arot radius inertia mass
 FloeElements 2
 0 0 0  0 0 0  0 0 0  0 0 0    1 0.25  0 0
 2 0 0  0 0 0  0 0 0  0 0 0    1 0.25  0 0
 
-#  i j isBonded fn fnb ft ftb fs fsb A coverage dn0
+# i j isBonded fn fnb ft ftb fs fsb A coverage dn0
 #Interactions 1
 #0 1  1   0 0 0   0 0 0   0.5  1.0  0.0
 
 # ice density
 computeMasseProperties 1000.0
-
 activateBonds 0.1
-
-
-
-
-
-
-

@@ -14,17 +14,9 @@ void Interaction::copy(Interaction &I) {
   fs  = I.fs;
   fsb = I.fsb;
 
-  meff = I.meff;
-  //kn   = I.kn;
-  //kt   = I.kt;
-  //mu   = I.mu;
-  //muR  = I.muR;
-  //fadh = I.fadh;
-
-  //damp = I.damp;
-  A = I.A;
+  meff     = I.meff;
+  A        = I.A;
   coverage = I.coverage;
-  //Gc   = I.Gc;
-  dn0  = I.dn0;
-  t0  = I.t0;
+  dn0      = I.dn0;
+  t0       = I.t0;
 }

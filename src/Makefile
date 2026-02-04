@@ -27,7 +27,7 @@ OBJECTS = $(SOURCES:%.cpp=%.o)
 
 .PHONY: all clean clone_toofus
 
-all: pac run see
+all: run see
 
 clean:
 	@echo "\033[0;32m-> Remove object files\033[0m"

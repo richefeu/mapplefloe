@@ -18,17 +18,20 @@ struct FloeElement {
   double vrot{0.0}; // Angular velocity
   double arot{0.0}; // Angular acceleration
 
+  // geometry
   double radius{0.0};
   double height{0.0};
   
+  // mass properties
   double inertia{0.0};
   double mass{0.0};
 
+  // resultant force and moment
   vec2r force;        // resultant force
   double zforce{0.0}; // out-of-plane resultant force
   double moment{0.0}; // resultant moment
   
-  int Z; // number of bonds and contacts 
+  int Z{0}; // number of bonds and contacts 
 
   FloeElement(); // Ctor
 };
